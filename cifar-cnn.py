@@ -2,6 +2,14 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torchvision
+import matplotlib.pyplot as plt
+import numpy as np
+
+def imshow(img):
+    img = img / 2 + 0.5     # unnormalize
+    npimg = img.numpy()
+    plt.imshow(np.transpose(npimg, (1, 2, 0)))
+    plt.show()
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
@@ -10,6 +18,7 @@ transform = torchvision.transforms.Compose([torchvision.transforms.ToTensor()])
 
 trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
 testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
+classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
 batch_size = 32
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=2)
@@ -63,22 +72,35 @@ model = CIFAR10Model()
 loss_fn = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-n_epochs = 20
-for epoch in range(n_epochs):
-    for inputs, labels in trainloader:
-        y_pred = model(inputs.to(device))
-        loss = loss_fn(y_pred, labels.to(device))
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+training = False
+if training:
+    n_epochs = 20
+    for epoch in range(n_epochs):
+        for inputs, labels in trainloader:
+            y_pred = model(inputs.to(device))
+            loss = loss_fn(y_pred, labels.to(device))
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
-    acc = 0
-    count = 0
-    for inputs, labels in testloader:
-        y_pred = model(inputs.to(device))
-        acc += (torch.argmax(y_pred, 1) == labels.to(device)).float().sum()
-        count += len(labels)
-    acc /= count
-    print("Epoch: %d model accuracy: %.2f%%" % (epoch, acc*100))
+        acc = 0
+        count = 0
+        for inputs, labels in testloader:
+            y_pred = model(inputs.to(device))
+            acc += (torch.argmax(y_pred, 1) == labels.to(device)).float().sum()
+            count += len(labels)
+        acc /= count
+        print("Epoch: %d model accuracy: %.2f%%" % (epoch, acc*100))
 
-torch.save(model.state_dict(), "cifar10_model.pth")
+    torch.save(model.state_dict(), "cifar10_model.pth")
+
+dataiter = iter(testloader)
+images, labels = next(dataiter)
+imshow(torchvision.utils.make_grid(images))
+print('GroundTruth: ', ' '.join(f'{classes[labels[j]]:5s}' for j in range(4)))
+
+inference_model = CIFAR10Model().to(device)
+inference_model.load_state_dict(torch.load("cifar10_model.pth"))
+outputs = inference_model(images)
+_, predicted = torch.max(outputs, 1)
+print('Predicted: ', ' '.join(f'{classes[predicted[j]]:5s}' for j in range(4)))
